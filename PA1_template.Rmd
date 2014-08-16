@@ -1,20 +1,208 @@
-# Reproducible Research: Peer Assessment 1
+Reproducible Research: Peer Assessment 1
+========================================================
 
 
 ## Loading and preprocessing the data
 
 
+  #1. Load the data
 
+#read in "activity.csv"
+
+```{r, echo = TRUE}
+setwd("C:/Users/ACLINN01/Documents")
+activity <- read.csv("activity.csv")
+```
+
+  # 2. Process/transform the data into a format suitable for your analysis
+
+#change the column "date" to native R date format
+
+```{r, echo = TRUE}
+activity$date<-as.Date(activity$date,"%Y-%m-%d")
+
+library(data.table)
+library(ggplot2)
+```
 ## What is mean total number of steps taken per day?
 
+
+  #1. Make a histogram of the total number of steps taken each day
+
+#summarize steps by date, omitting NA values
+
+```{r, echo = TRUE}
+activity_daily<-data.table(na.omit(activity))[,list(total_steps=sum(steps)), by=(date)]
+```
+
+#open a PNG and plot the values
+
+```{r ggplot, echo = TRUE, results='hide', message=FALSE, warning=FALSE}
+ggplot(activity_daily,aes(x=date,y=total_steps))+geom_bar(stat='identity') +
+ggtitle("Total Steps by Day") + ylab("Steps")  + xlab("Date")
+```
+
+  #Calculate and report the mean and median total number of steps taken per day
+
+#calculate the daily mean and median values
+
+```{r, echo = TRUE}
+mean(activity_daily$total_steps, na.rm = TRUE)
+median(activity_daily$total_steps, na.rm = TRUE)
+```
 
 
 ## What is the average daily activity pattern?
 
+  #1. Make a time series plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+
+#average steps by interval, omitting NA values
+
+```{r, echo = TRUE}
+activity_int<-data.table(na.omit(activity))[,list(avg_steps=mean(steps)), by=(interval)]
+```
+
+#open a PNG and plot the values
+
+```{r}
+ggplot(activity_int, aes(interval, avg_steps)) + geom_line() +
+  ggtitle("Average Steps per Interval") + ylab("Steps")  + xlab("Inverval")
+```
+
+
+  #2. Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
+#subset the data to return the inteval and avg. steps for the interval with the most avg steps
+
+```{r, echo = TRUE}
+activity_int[avg_steps==max(activity_int$avg_steps)]
+```
 
 
 ## Imputing missing values
 
 
+  #1. Calculate and report the total number of missing values in the dataset 
+
+```{r, echo = TRUE}
+sum(is.na(activity$steps))
+```
+
+  #2. Devise a strategy for filling in all of the missing values in the dataset. 
+
+#subset only the missing values and non-missing values seperately
+
+```{r, echo = TRUE}
+mis<-subset(activity,is.na(activity$steps))
+nomis <- subset(activity,!is.na(activity$steps))
+```
+
+#merge the missing values data table with the interval averages
+```{r, echo = TRUE}
+mis2 <- data.table(subset(merge(mis, activity_int, by="interval"),select = -steps))
+```
+
+#rename and reorder columns
+
+```{r, echo = TRUE}
+setnames(mis2,"avg_steps","steps")
+setcolorder(mis2,c("steps","date","interval"))
+```
+
+  #3. Create a new dataset that is equal to the original dataset but with the missing data filled in.
+
+#union the mis data set with replaced values with the nomis data
+
+```{r, echo = TRUE}
+finaldat <- rbind(mis2, nomis)
+```
+
+  #4. Make a histogram of the total number of steps taken each day and Calculate and report the mean 
+  #   and median total number of steps taken per day. 
+
+#summarize steps by date
+
+```{r, echo = TRUE}
+activity_daily2<-data.table(finaldat)[,list(total_steps=sum(steps)), by=(date)]
+```
+
+#open a PNG and plot the values
+
+```{r echo = TRUE, results='hide', message=FALSE, warning=FALSE}
+ggplot(activity_daily2,aes(x=date,y=total_steps))+geom_bar(stat='identity') +
+ggtitle("Total Steps by Day") + ylab("Steps")  + xlab("Date")
+```
+
+  #a. Do these values differ from the estimates from the first part of the assignment?
+
+
+mean: NA values removed
+```{r, echo = TRUE}
+mean(activity_daily$total_steps, na.rm = TRUE)
+```
+mean: NA values replaced
+```{r, echo = TRUE}
+mean(activity_daily2$total_steps, na.rm = TRUE)
+```
+median: NA values removed
+```{r, echo = TRUE}
+median(activity_daily$total_steps, na.rm = TRUE)
+```
+median: NA values replaced
+```{r, echo = TRUE}
+median(activity_daily2$total_steps, na.rm = TRUE)
+```
+
+
+  #b. What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+
+mean values were used to impute missing values, so means do not change. 
+however, additional values are present so median values are affected
+
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+  #1. Create a new factor variable in the dataset with two levels - 
+  #   "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+
+#add weekday
+
+```{r, echo = TRUE}
+finaldat$wd <- weekdays(finaldat$date)
+```
+
+#replace values with "Weekend" and "Weekday"
+
+```{r, echo = TRUE}
+finaldat$wd[finaldat$wd %in% c("Saturday","Sunday")]<-"Weekend"
+finaldat$wd[finaldat$wd %in% c("Monday","Tuesday","Wednesday","Thursday","Friday")]<-"Weekday"
+```
+  #2. Make a panel plot containing a time series plot of the 5-minute interval and the average number 
+  #   of steps taken, averaged across all weekday days or weekend days.
+
+#average steps by interval, subsetted by weekend or weekday
+
+```{r, echo = TRUE}
+activity_int3<-data.table(subset(finaldat, wd == "Weekend"))[,list(avg_steps=mean(steps)), by=(interval)]
+activity_int4<-data.table(subset(finaldat, wd == "Weekday"))[,list(avg_steps=mean(steps)), by=(interval)]
+
+p1<- 
+ggplot(activity_int3, aes(interval, avg_steps)) + geom_line() +
+ggtitle("Average Steps per Interval - Weekend") + ylab("Steps")  + xlab("Inverval")
+
+p2<- 
+ggplot(activity_int4, aes(interval, avg_steps)) + geom_line() +
+ggtitle("Average Steps per Interval - Weekday") + ylab("Steps")  + xlab("Inverval")
+
+
+#open a PNG, plot two charts
+
+
+library(grid)
+
+grid.newpage()
+pushViewport(viewport(layout = grid.layout(2, 1)))
+print(p1, vp = viewport(layout.pos.row = 1, layout.pos.col = 1))
+print(p2, vp = viewport(layout.pos.row = 2, layout.pos.col = 1))
+```
